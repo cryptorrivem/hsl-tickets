@@ -65,12 +65,19 @@ async function getTickets({ currentPath, previousPath, outputPath }) {
 
     const tickets = accounts.reduce((res, acc, ix) => {
       if (acc.tokenInfo && holders[ix].data[0]) {
+        const {
+          tokenInfo: { name },
+        } = acc;
+        const [{ owner: holder }] = holders[ix];
+        const hash = batch[ix];
+        const number = parseInt(name.replace("HSL Ticket #", ""));
         return [
           ...res,
           {
-            name: acc.tokenInfo.name,
-            hash: batch[ix],
-            holder: holders[ix].data[0].owner,
+            name,
+            hash,
+            holder,
+            number,
           },
         ];
       } else {
@@ -93,6 +100,7 @@ async function getTickets({ currentPath, previousPath, outputPath }) {
   console.info("FINISHED");
   console.info("**************");
   console.info("valid tickets:", cached.length);
+
   saveTickets(outputPath, cached);
 }
 
