@@ -1,13 +1,11 @@
 const { getTickets } = require("./hsl");
 
-const [_1, _2, account, firstTx, lastTx] = process.argv;
+const [_1, _2, currentPath, previousPath, outputPath] = process.argv;
 
 (async function () {
-  const tickets = await getTickets({
-    account,
-    firstTx,
-    lastTx,
+  await getTickets({
+    currentPath,
+    previousPath,
+    outputPath,
   });
-
-  console.info(JSON.stringify(tickets, null, "  "));
 })();

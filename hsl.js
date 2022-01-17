@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const { fetch } = require("./utils/fetch");
 const { throttle } = require("./utils/throttle");
 
@@ -8,51 +10,90 @@ function solscanFetch(path, query) {
   });
 }
 
-async function getTransactions({ account, lastTx, firstTx }) {
-  let beforeHash = lastTx;
+const cachePath = path.join(__dirname, "cache.json");
+function getCachedTickets(file) {
   let result = [];
-  while (beforeHash !== firstTx) {
-    const transactions = await solscanFetch("account/transactions", {
-      account,
-      beforeHash,
-      limit: 100,
-    });
-    let validTransactions = transactions.filter((t) => t.status === "Success");
-    const firstTxIx = validTransactions.findIndex((t) => t.txHash === firstTx);
-    if (transactions.length === 0 || firstTxIx >= 0) {
-      validTransactions = validTransactions.slice(0, firstTxIx);
-      beforeHash = firstTx;
-    } else {
-      beforeHash = transactions[transactions.length - 1].txHash;
-    }
-    result = [...result, ...validTransactions];
+  if (fs.existsSync(file)) {
+    result = JSON.parse(fs.readFileSync(cachePath, { encoding: "utf-8" }));
   }
-
   return result;
 }
 
-async function getTickets({ account, firstTx, lastTx }) {
-  const transactions = await getTransactions({
-    account,
-    firstTx,
-    lastTx,
+function saveTickets(file, tickets) {
+  fs.writeFileSync(file, JSON.stringify(tickets, null, "\t"), {
+    encoding: "utf-8",
   });
+}
 
-  const tokenAddress = transactions.map((t) => t.signer[1]);
-
-  const accounts = await Promise.all(
-    tokenAddress.map((t) => solscanFetch(`account/${t}`))
+function getTicketsToProcess({ currentPath, previousPath }) {
+  const current = JSON.parse(
+    fs.readFileSync(currentPath, { encoding: "utf-8" })
   );
-  const holders = await Promise.all(
-    tokenAddress.map((t) => solscanFetch("token/holders", { tokenAddress: t }))
+  const previous = JSON.parse(
+    fs.readFileSync(previousPath, { encoding: "utf-8" })
   );
 
-  const tickets = accounts.map(({ tokenInfo: { name } }, ix) => ({
-    name,
-    holder: holders[ix].data[0].owner,
-  }));
+  return current.filter((c) => !previous.includes(c));
+}
 
-  return tickets;
+async function getTickets({ currentPath, previousPath, outputPath }) {
+  let cached = getCachedTickets(cachePath);
+
+  let toProcess = getTicketsToProcess({
+    currentPath,
+    previousPath,
+  }).filter((t) => !cached.some((c) => c.hash === t));
+  console.info(
+    "tickets cached:",
+    cached.length,
+    "of",
+    toProcess.length + cached.length
+  );
+  console.info("tickets to process:", toProcess.length);
+
+  const batchSize = 10;
+  while (toProcess.length > 0) {
+    const batch = toProcess.slice(0, batchSize);
+    toProcess = toProcess.slice(batchSize);
+
+    const accounts = await Promise.all(
+      batch.map((t) => solscanFetch(`account/${t}`))
+    );
+    const holders = await Promise.all(
+      batch.map((t) => solscanFetch("token/holders", { tokenAddress: t }))
+    );
+
+    const tickets = accounts.reduce((res, acc, ix) => {
+      if (acc.tokenInfo && holders[ix].data[0]) {
+        return [
+          ...res,
+          {
+            name: acc.tokenInfo.name,
+            hash: batch[ix],
+            holder: holders[ix].data[0].owner,
+          },
+        ];
+      } else {
+        console.info("invalid ticket:", batch[ix]);
+      }
+      return res;
+    }, []);
+    cached = [...cached, ...tickets];
+    console.info(
+      "processed:",
+      cached.length,
+      "of",
+      cached.length + toProcess.length
+    );
+
+    saveTickets(cachePath, cached);
+  }
+
+  console.info("**************");
+  console.info("FINISHED");
+  console.info("**************");
+  console.info("valid tickets:", cached.length);
+  saveTickets(outputPath, cached);
 }
 
 module.exports = {
