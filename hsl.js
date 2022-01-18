@@ -68,7 +68,7 @@ async function getTickets({ currentPath, previousPath, outputPath }) {
         const {
           tokenInfo: { name },
         } = acc;
-        const [{ owner: holder }] = holders[ix];
+        const [{ owner: holder }] = holders[ix].data;
         const hash = batch[ix];
         const number = parseInt(name.replace("HSL Ticket #", ""));
         return [
