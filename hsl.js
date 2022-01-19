@@ -7,10 +7,18 @@ const {
 const { fetch } = require("./utils/fetch");
 const { throttle } = require("./utils/throttle");
 
-const throttledSolscanFetch = throttle(4);
+class ConnectionError extends Error {
+  constructor(e) {
+    super(e.message);
+  }
+}
+
+const throttledSolscanFetch = throttle(20);
 function solscanFetch(path, query) {
   return throttledSolscanFetch(fetch, `https://public-api.solscan.io/${path}`, {
     query,
+  }).catch((e) => {
+    throw new ConnectionError(e);
   });
 }
 
@@ -21,7 +29,7 @@ function getTicketsToProcess({ currentPath, previousPath }) {
   return current.filter((c) => !previous.includes(c));
 }
 
-async function getTickets({ currentPath, previousPath, outputPath }) {
+async function getTickets({ currentPath, previousPath }) {
   let cached = getCachedTickets();
 
   let toProcess = getTicketsToProcess({
@@ -81,7 +89,11 @@ async function getTickets({ currentPath, previousPath, outputPath }) {
   console.info("**************");
   console.info("valid tickets:", cached.length);
 
-  const list = cached.map(({ number, name, hash }, ix) => ({
+  return cached;
+}
+
+function saveTickets({ tickets, outputPath }) {
+  const list = tickets.map(({ number, name, hash }, ix) => ({
     pos: ix + 1,
     number,
     ticket: name,
@@ -92,5 +104,7 @@ async function getTickets({ currentPath, previousPath, outputPath }) {
 }
 
 module.exports = {
+  ConnectionError,
   getTickets,
+  saveTickets,
 };

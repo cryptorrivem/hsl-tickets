@@ -34,4 +34,4 @@ node cli hashes/2022-01-17.json hashes/2022-01-15.json output.json
 
 ## Troubleshooting
 
-The process holds a cache.json file to allow resuming when we hit solscan api rate limit. Just wait 30 secs before running the same process again, and it'll pick up where it left.
+The process holds a cache.json file to allow resuming when we hit solscan api rate limit. The process will wait 30 secs before resuming where it left.
