@@ -1,5 +1,9 @@
-const fs = require("fs");
-const path = require("path");
+const {
+  getCachedTickets,
+  saveCachedTickets,
+  getHashes,
+  saveOutput,
+} = require("./fs");
 const { fetch } = require("./utils/fetch");
 const { throttle } = require("./utils/throttle");
 
@@ -10,34 +14,15 @@ function solscanFetch(path, query) {
   });
 }
 
-const cachePath = path.join(__dirname, "cache.json");
-function getCachedTickets(file) {
-  let result = [];
-  if (fs.existsSync(file)) {
-    result = JSON.parse(fs.readFileSync(cachePath, { encoding: "utf-8" }));
-  }
-  return result;
-}
-
-function saveTickets(file, tickets) {
-  fs.writeFileSync(file, JSON.stringify(tickets, null, "\t"), {
-    encoding: "utf-8",
-  });
-}
-
 function getTicketsToProcess({ currentPath, previousPath }) {
-  const current = JSON.parse(
-    fs.readFileSync(currentPath, { encoding: "utf-8" })
-  );
-  const previous = JSON.parse(
-    fs.readFileSync(previousPath, { encoding: "utf-8" })
-  );
+  const current = getHashes(currentPath);
+  const previous = getHashes(previousPath);
 
   return current.filter((c) => !previous.includes(c));
 }
 
 async function getTickets({ currentPath, previousPath, outputPath }) {
-  let cached = getCachedTickets(cachePath);
+  let cached = getCachedTickets();
 
   let toProcess = getTicketsToProcess({
     currentPath,
@@ -51,7 +36,7 @@ async function getTickets({ currentPath, previousPath, outputPath }) {
   );
   console.info("tickets to process:", toProcess.length);
 
-  const batchSize = 10;
+  const batchSize = 4;
   while (toProcess.length > 0) {
     const batch = toProcess.slice(0, batchSize);
     toProcess = toProcess.slice(batchSize);
@@ -59,25 +44,20 @@ async function getTickets({ currentPath, previousPath, outputPath }) {
     const accounts = await Promise.all(
       batch.map((t) => solscanFetch(`account/${t}`))
     );
-    const holders = await Promise.all(
-      batch.map((t) => solscanFetch("token/holders", { tokenAddress: t }))
-    );
 
     const tickets = accounts.reduce((res, acc, ix) => {
-      if (acc.tokenInfo && holders[ix].data[0]) {
+      if (acc.tokenInfo) {
         const {
           tokenInfo: { name },
         } = acc;
-        const [{ owner: holder }] = holders[ix].data;
         const hash = batch[ix];
         const number = parseInt(name.replace("HSL Ticket #", ""));
         return [
           ...res,
           {
+            number,
             name,
             hash,
-            holder,
-            number,
           },
         ];
       } else {
@@ -93,7 +73,7 @@ async function getTickets({ currentPath, previousPath, outputPath }) {
       cached.length + toProcess.length
     );
 
-    saveTickets(cachePath, cached);
+    saveCachedTickets(cached);
   }
 
   console.info("**************");
@@ -101,7 +81,14 @@ async function getTickets({ currentPath, previousPath, outputPath }) {
   console.info("**************");
   console.info("valid tickets:", cached.length);
 
-  saveTickets(outputPath, cached);
+  const list = cached.map(({ number, name, hash }, ix) => ({
+    pos: ix + 1,
+    number,
+    ticket: name,
+    hash,
+  }));
+
+  saveOutput(outputPath, list);
 }
 
 module.exports = {

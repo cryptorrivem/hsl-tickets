@@ -21,11 +21,14 @@ Replace:
 
 - [currentHashPath] path to current hash list file (expects a json file with an array)
 - [previousHashPath] path to previous draw hash list file (expects a json file with an array)
-- [outputPath] where to store the tickets that were purchased for this draw. It's a json file with an array of `{ name, hash, holder }` with HSL ticket's name (including number), hash (from the input), and who's the holder of that ticket at this moment.
+- [outputPath] where to store the tickets that were purchased for this draw. It's a csv file of `pos, number, ticket, hash` with position (for the draw), parsed number, HSL ticket's name and hash (from the input).
+  - Supported [outputPath] file extension are `.csv`, `.json` and `.table` (for easy reading with monospace)
 
-Example:
+Examples:
 
 ```
+node cli hashes/2022-01-17.json hashes/2022-01-15.json output.table
+node cli hashes/2022-01-17.json hashes/2022-01-15.json output.csv
 node cli hashes/2022-01-17.json hashes/2022-01-15.json output.json
 ```
 

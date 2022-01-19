@@ -1,4 +1,6 @@
 node_modules
-output.json
 cache.json
 hashes
+
+# output files
+output.*
